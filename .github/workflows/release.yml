@@ -1,0 +1,46 @@
+---
+name: "tagged-release"
+
+on:
+  push:
+    tags:
+      - "*"
+
+jobs:
+  tagged-release:
+    name: "Tagged Release"
+    runs-on: "ubuntu-latest"
+
+    steps:
+      - name: Download artifact
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          workflow: build.yml
+          workflow_conclusion: success
+          commit: ${{ github.sha }}
+          # Artifact name
+          # Destination path
+          path: .
+
+      # - name: Uncompress file
+      #   run: tar -xzvf dist/scanoss*/* -C dist
+
+      # - name: test output
+      #   run: echo $(ls dist)
+
+      # - name: Set release folder
+      #   run: echo "::set-output name=RELEASE_FOLDER::$(ls dist)"
+      #   id: set-release-folder
+      
+      # - name: test output
+      #   run: echo $(ls "dist/${{ steps.set-release-folder.outputs.RELEASE_FOLDER }}/")
+
+      # - name: Compress release files
+      #   run: tar -czvf ${{ steps.set-release-folder.outputs.RELEASE_FOLDER }}.tar.gz dist/scanoss*/* 
+
+      - uses: "marvinpinto/action-automatic-releases@latest"
+        with:
+          repo_token: "${{ secrets.GITHUB_TOKEN }}"
+          prerelease: false
+          draft: true
+          files: "**.tar.gz"

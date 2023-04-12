@@ -1,0 +1,102 @@
+name: tagged-release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "*"
+
+jobs:
+  tagged-release:
+    name: "Tagged Release"
+    runs-on: ubuntu-latest
+    container:
+      image: debian:buster
+
+    steps:
+
+      - name: Install third party dependencies
+        run: apt update && apt install -y build-essential libssl-dev zlib1g-dev
+
+      - uses: actions/checkout@v3
+
+      - name: Build
+        run: |
+          make all
+          mkdir -p ./artifacts/
+          cp ldb ./artifacts/ldb
+          cp libldb.so ./artifacts/libldb.so
+          cp LICENSE ./artifacts/LICENSE
+          echo "Produced artifact at ${PWD}/artifacts/ldb"
+
+      - name: 'Tar files'
+        run: tar czvf ldb-${{ github.ref_name }}-amd64.tar.gz ./artifacts/*
+
+      - name: Prepare deb package
+        run: |
+          mkdir -p ./dist/.debpkg/usr/local/bin
+          mkdir -p ./dist/.debpkg/usr/local/lib
+          cp ldb ./dist/.debpkg/usr/local/bin/ldb
+          chmod +x ./dist/.debpkg/usr/local/bin/ldb
+          cp libldb.so ./dist/.debpkg/usr/local/lib/libldb.so
+          mkdir -p ./dist/.debpkg/DEBIAN
+
+          echo "Package: ldb" > ./dist/.debpkg/DEBIAN/control
+          echo "Version: ${{ github.ref_name }}" > ./dist/.debpkg/DEBIAN/control
+          echo "Maintainer: SCANOSS <support@scanoss.com>" > ./dist/.debpkg/DEBIAN/control
+          echo "Architecture: amd64" > ./dist/.debpkg/DEBIAN/control
+          echo "Description: SCANOSS ldb" > ./dist/.debpkg/DEBIAN/control
+
+      - uses: jiro4989/build-deb-action@v2
+        id: build_deb
+        with:
+          package: ldb
+          package_root: ./dist/.debpkg
+          maintainer: SCANOSS <support@scanoss.com>
+          version: ${{ github.ref }} # refs/tags/v*.*.*
+          arch: amd64
+          depends: 'openssl, zlib'
+          desc: 'SCANOSS ldb'
+          
+      - name: Fix deb package naming
+        run: |
+          file=`echo ${{ steps.build_deb.outputs.file_name }}`
+          fileDest=`echo $file | sed 's/_/-/g'`
+          mv $file $fileDest
+      
+
+      - name: Prepare rpm package
+        run: |
+          mkdir -p ./dist/.rpmpkg/usr/bin
+          mkdir -p ./dist/.rpmpkg/usr/lib
+          cp ldb ./dist/.rpmpkg/usr/bin/ldb
+          chmod +x ./dist/.rpmpkg/usr/bin/ldb
+          cp libldb.so ./dist/.rpmpkg/usr/lib/libldb.so
+
+      - uses: jiro4989/build-rpm-action@v2
+        with:
+          summary: 'SCANOSS LDB'
+          package: ldb
+          package_root: ./dist/.rpmpkg
+          maintainer: SCANOSS
+          version: ${{ github.ref }} # refs/tags/v*.*.*
+          arch: x86_64
+          desc: 'SCANOSS ldb'
+
+      - name: Show the artifacts
+        # Items placed in /artifacts in the container will be in
+        # ${PWD}/artifacts on the host.
+        run: |
+          ls -al "${PWD}/artifacts"
+          ls -al "${PWD}"
+          ls -al "${PWD}"
+
+      - name: Create Draft Release ${{ github.ref_type }} - ${{ github.ref_name }}
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v1
+        with:
+          draft: true
+          files: |
+            ./*.tar.gz
+            ./*.deb
+            ./ldb-${{ github.ref_name }}-1.el7.x86_64.rpm

@@ -5,8 +5,7 @@ CCFLAGS?=-O -g -Wall -std=gnu99
 LIBFLAGS=$(CCFLAGS) -fPIC -c
 LIBS=-lm -lpthread -lz 
 
-SHELL_FILENAME=ldb
-LIB_FILENAME=libldb.so
+VERSION=$(shell ./version.sh)
 
 # HELP
 # This will output the help for each task
@@ -37,6 +36,7 @@ distclean: clean
 clean:  ## Cleans dev data
 	@echo Cleaning...
 	@rm -f *.o *.a ldb *.so
+	@rm -rf dist
 
 install:  ## Install the library and shell
 	@cp ldb /usr/bin
@@ -46,3 +46,10 @@ install:  ## Install the library and shell
 test: ldb ## Run tests
 	@test/test.sh
 
+prepare_deb_package: all ## Prepares the deb Package 
+	@./package.sh deb $(VERSION)
+	@echo deb package built
+
+prepare_rpm_package: all ## Prepares the rpm Package 
+	@./package.sh rpm $(VERSION)
+	@echo rpm package built
